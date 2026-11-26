@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{csp}}; script-src 'nonce-{{nonce}}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{{style}}">
+</head>
+<body>
+  <header>
+    <div class="segmented" id="sources">
+      <button data-filter="all">All</button>
+      <button data-filter="cursor">Cursor</button>
+      <button data-filter="claude">Claude</button>
+    </div>
+    <div class="segmented" id="ranges">
+      <button data-range="today">Today</button>
+      <button data-range="week">Week</button>
+      <button data-range="month">Month</button>
+      <button data-range="all">All time</button>
+    </div>
+    <input id="search" class="search" type="search" placeholder="Filter by title, ticket, branch, PR">
+    <div id="tags" class="tag-bar"></div>
+    <div id="overall"></div>
+  </header>
+  <main id="root"><p class="dim">Scanning…</p></main>
+  <footer id="updated"></footer>
+  <script nonce="{{nonce}}" src="{{script}}"></script>
+</body>
+</html>

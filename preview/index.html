@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'nonce-preview'; script-src 'self' 'unsafe-inline'"><link rel="stylesheet" href="../media/view.css">
+<style nonce="preview">
+:root{--vscode-font-family:-apple-system,BlinkMacSystemFont,sans-serif;--vscode-font-size:13px;--vscode-foreground:#cccccc;--vscode-descriptionForeground:#9d9d9d;--vscode-editor-background:#1f1f1f;--vscode-sideBar-background:#181818;--vscode-charts-blue:#3794ff;--vscode-charts-yellow:#cca700;--vscode-charts-orange:#d18616;--vscode-charts-red:#f14c4c;--vscode-charts-green:#89d185;--vscode-charts-purple:#b180d7;--vscode-disabledForeground:#6e6e6e;--vscode-button-background:#0078d4;--vscode-button-foreground:#fff;--vscode-button-secondaryBackground:#313131;--vscode-button-secondaryForeground:#ccc;--vscode-input-background:#313131;--vscode-input-foreground:#ccc;--vscode-badge-background:#616161;--vscode-badge-foreground:#fff;--vscode-widget-border:#3c3c3c;--vscode-progressBar-background:#0078d4;--vscode-textLink-foreground:#4daafc}
+html,body{background:#181818;margin:0}
+body{width:400px}
+</style></head><body>
+<header>
+  <div class="segmented" id="sources"><button data-filter="all">All</button><button data-filter="cursor">Cursor</button><button data-filter="claude">Claude</button></div>
+  <div class="segmented" id="ranges"><button data-range="today">Today</button><button data-range="week">Week</button><button data-range="month">Month</button><button data-range="all">All time</button></div>
+  <input id="search" class="search" type="search" placeholder="Filter by title, ticket, branch, PR">
+  <div id="tags" class="tag-bar"></div>
+  <div id="overall"></div>
+</header>
+<main id="root"></main><footer id="updated"></footer>
+<!-- ?data=mock renders preview/mock-snapshot.js; otherwise preview/snapshot.json from `node bin/snapshot.js > preview/snapshot.json`. ?open=turn,working,done picks the expanded groups. -->
+<script>window.acquireVsCodeApi=()=>({getState:()=>({openGroups:(new URLSearchParams(location.search).get("open")||"working,turn").split(",")}),setState(){},postMessage(){}});</script>
+<script src="mock-snapshot.js"></script>
+<script src="../media/view.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const load = params.get("data") === "mock" ? Promise.resolve(window.mockSnapshot(Date.now())) : fetch("snapshot.json").then((r) => r.json());
+load.then((s) => { s.generatedAt = Date.now(); window.postMessage({ type: "data", snapshot: s }, "*"); });
+</script>
+</body></html>

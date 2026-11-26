@@ -1,0 +1,119 @@
+{
+  "name": "agent-tracker",
+  "displayName": "Agent Tracker",
+  "description": "Live status and progress of every Cursor and Claude Code agent on this machine.",
+  "version": "0.4.3",
+  "publisher": "felyppe",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/felyppers/agent-tracker.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentTracker",
+          "title": "Agent Tracker",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "agentTracker": [
+        {
+          "type": "webview",
+          "id": "agentTracker.view",
+          "name": "Agent Tracker"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "agentTracker.openPanel",
+        "title": "Agent Tracker: Open in Editor",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "agentTracker.refresh",
+        "title": "Agent Tracker: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "agentTracker.installProgressRules",
+        "title": "Agent Tracker: Install Progress Rules"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agentTracker.refresh",
+          "when": "view == agentTracker.view",
+          "group": "navigation"
+        },
+        {
+          "command": "agentTracker.openPanel",
+          "when": "view == agentTracker.view",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Agent Tracker",
+      "properties": {
+        "agentTracker.pingText": {
+          "type": "string",
+          "default": "Continue where you left off. If you are blocked, say exactly what you need from me.",
+          "description": "Message Ping sends to Claude Code sessions. Cursor chats are resumed instead, with no text."
+        },
+        "agentTracker.tagRules": {
+          "type": "object",
+          "default": {},
+          "description": "Extra or overriding tag rules: tag name to a case-insensitive regex, e.g. {\"data\": \"\\\\b(dbt|bigquery)\\\\b\"}."
+        },
+        "agentTracker.pollSeconds": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "description": "How often to rescan transcripts."
+        },
+        "agentTracker.onlyWork": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only show sessions started with a /work command or skill."
+        },
+        "agentTracker.stalledMinutes": {
+          "type": "number",
+          "default": 15,
+          "description": "A turn with no transcript activity for this long shows as stalled."
+        },
+        "agentTracker.prices": {
+          "type": "object",
+          "default": {},
+          "description": "Extra or overriding USD-per-1M-token prices keyed by model prefix, e.g. {\"claude-opus-5-5\": {\"input\": 4, \"output\": 20, \"cacheHit\": 0.05}}."
+        },
+        "agentTracker.worktreeCleanupScript": {
+          "type": "string",
+          "default": "builtin",
+          "description": "Script run as `<script> --worktree PATH` to remove an agent's worktree. `builtin` runs the same checks with git directly, on any OS. A custom script must refuse (exit 2) when the worktree has uncommitted or unpushed work. Empty disables worktree cleanup."
+        },
+        "agentTracker.cleanDoneWorktreesAfterMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 0,
+          "description": "Remove a done task's worktrees once it has been quiet this long. 0 disables cleanup for done tasks; Kill still cleans up."
+        }
+      }
+    }
+  }
+}
