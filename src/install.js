@@ -49,12 +49,17 @@ function installProgressRules({ bridge = false, home = os.homedir() } = {}) {
 
   const claudeMd = path.join(home, '.claude', 'CLAUDE.md');
   const current = fs.existsSync(claudeMd) ? fs.readFileSync(claudeMd, 'utf8') : '';
-  if (current.includes(MARK)) {
+  const block = `<!-- ${MARK} -->\n${rule}<!-- /${MARK} -->`;
+  const existing = new RegExp(`<!-- ${MARK} -->[\\s\\S]*?<!-- /${MARK} -->`);
+  if (current.includes(block)) {
     report.push(`Claude Code: rule already in ${claudeMd}`);
+  } else if (existing.test(current)) {
+    fs.writeFileSync(claudeMd, current.replace(existing, () => block));
+    report.push(`Claude Code: rule updated in ${claudeMd}`);
   } else if (current.includes('[NN%]')) {
     report.push(`Claude Code: ${claudeMd} already has a progress rule, left as is`);
   } else {
-    fs.appendFileSync(claudeMd, `\n<!-- ${MARK} -->\n${rule}<!-- /${MARK} -->\n`);
+    fs.appendFileSync(claudeMd, `\n${block}\n`);
     report.push(`Claude Code: rule added to ${claudeMd}`);
   }
 

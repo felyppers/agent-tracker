@@ -1,6 +1,6 @@
 ---
 name: progress-tracking
-description: Report a percentage progress line on every task and every follow-up message, in the `**[NN%]** k/N — done · next: step` shape that Agent Tracker parses. Use on every task, including one-shot answers, and pass it on to every subagent you spawn.
+description: Report a percentage progress line on every task and every follow-up message, in the `**[NN%]** k/N — done · next: step` shape that Agent Tracker parses. Use on every task, including one-shot answers and orchestrators whose progress includes their subagents' work, and pass it on to every subagent you spawn.
 ---
 
 # Progress tracking
@@ -31,8 +31,18 @@ Print each progress line on its own, at the start of the line:
 - `NN` = steps done / total steps. If the plan grows or shrinks, change `N` and keep going. Don't restart from 0.
 - Weight a step by its size when one clearly dominates (a long test run, a big refactor). The number should track time, not only count steps.
 - When you stop to ask the user something, keep the current percentage. Never print 100% for a task that is waiting on the user.
-- Tell every subagent you spawn to follow this skill.
 - A skill or command that defines its own progress table uses that table, as long as its lines keep the `**[NN%]**` prefix.
+
+## Subagents
+
+Work you hand to subagents is still your task, so your percentage counts it. Spawning subagents finishes nothing.
+
+- Plan each subagent as a step, weighted by its size like any other step, plus your own steps (splitting the work, merging the results).
+- A subagent's step is done when its result is back and you've used it, not when you launch it. Right after spawning, your number stays where it was.
+- If you check on a running subagent and see its own progress line, count that fraction: a subagent at 50% adds half of its step.
+- When your turn ends with subagents still running, end it on your current percentage. Never print 100% while a subagent you started is still working.
+- When results come back, print a new line counting them, and print 100% only after the last one is back and your own steps are done.
+- Tell every subagent you spawn to follow this skill, so its own row shows its progress too.
 
 ## Examples
 
@@ -42,6 +52,16 @@ Print each progress line on its own, at the start of the line:
 **[50%]** 2/4 — parser keeps the offset · next: run the suite
 **[75%]** 3/4 — 412 tests pass · next: open the PR
 **[100%]** 4/4 — PR opened · next: none
+```
+
+An orchestrator running three subagents counts their work, and spawning them leaves it at 0%:
+
+```
+**[0%]** 0/4 — plan: 3 subagents (api, web, tests), then merge · next: spawn them
+**[0%]** 0/4 — spawned api, web and tests subagents · next: wait for their results
+**[25%]** 1/4 — api returned: endpoint added · next: wait for web and tests
+**[75%]** 3/4 — web and tests returned · next: merge and verify
+**[100%]** 4/4 — merged, 412 tests pass · next: none
 ```
 
 A question back to the user keeps the number:

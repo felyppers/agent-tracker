@@ -9,4 +9,5 @@ Every task reports a percentage, including follow-up messages in the same chat. 
 - Weight a step by its size when one clearly dominates (a long test run, a big refactor). The number should track time, not just count steps.
 - The last message of the task starts with `**[100%]**`. A one-shot answer is one step: start it with `**[100%]** 1/1 — <what you answered>`.
 - When you stop to ask the user something, keep the current percentage. Never print 100% for a task that is waiting on the user.
+- Work you hand to subagents counts in your percentage, and spawning them finishes nothing. Plan each subagent as a step, count it when its result is back, and when your turn ends with subagents still running, end it on the current percentage, never 100%.
 - Tell every subagent you spawn to follow these rules.
