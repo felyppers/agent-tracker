@@ -37,6 +37,7 @@ const NOT_INSTRUCTION = new RegExp(
 const CHUNK = 4 * 1024 * 1024;
 const LIVE_WINDOW_MS = 6 * 3600 * 1000;
 const FLUSH_SLACK_MS = 60 * 1000;
+const BATCH_MS = 30 * 1000;
 // Agent worktrees live at ~/.cursor/worktrees/<name>/<repo> (Cursor) or <repo>/.claude/worktrees/<name> (Claude Code).
 // Separators may be / or \, and transcripts store a backslash JSON-escaped as \\.
 const SEP = String.raw`(?:/|\\{1,2})`;
@@ -227,6 +228,7 @@ function reduceCursor(st, entry) {
     if (part.type === 'tool_use') onToolUse(st, part);
     else if (part.type === 'text') onAssistantText(st, part.text || '');
   }
+  if (content.length) st.endsOnTool = content[content.length - 1].type === 'tool_use';
 }
 
 function reduceClaude(st, entry) {
@@ -371,7 +373,7 @@ class Collector {
       if (s.source === 'cursor') {
         mergeComposer(s, db);
         applyLiveMessages(s, live.get(s.id) || [], now);
-        for (const sub of s.subs) sub.pendingApproval = pendingApproval(sub.composerStatus, sub.lastActive, live.get(sub.id) || [], now);
+        for (const sub of s.subs) sub.pendingOn = pendingOnYou(sub.composerStatus, sub.lastActive, live.get(sub.id) || [], now);
         s.cost = cursorEstimate(s, db, opts.prices);
       }
       delete s.flushedAt;
@@ -386,13 +388,14 @@ class Collector {
       s.status = deriveStatus(s, now, opts);
       delete s.promptText;
       delete s.liveTool;
-      delete s.pendingApproval;
+      delete s.pendingOn;
       const trees = new Set([...s.worktrees, ...s.subs.flatMap((x) => x.worktrees || [])]);
       const cwdTree = s.cwd && WORKTREE_PATH.exec(s.cwd);
       if (cwdTree) trees.add(worktreePath(cwdTree[0]));
       s.worktrees = [...trees].filter((w) => fs.existsSync(w));
       for (const sub of s.subs) {
-        delete sub.pendingApproval;
+        delete sub.pendingOn;
+        delete sub.endsOnTool;
         delete sub.promptText;
         delete sub.calls;
         delete sub.outChars;
@@ -583,21 +586,30 @@ function sessionView(st) {
 }
 
 // A tool call held for approval is 'loading' with a block reason; approving it marks the review Done and
-// starts it, rejecting it records a decision. Approved edits can stay 'loading' forever, so only the chat's
-// latest activity counts: nothing else can happen while the agent waits on you.
-function pendingApproval(composerStatus, flushedAt, all, now) {
-  if (composerStatus === 'completed') return false;
-  // The transcript records the held call itself a few seconds after the request.
-  const latest = Math.max(flushedAt - FLUSH_SLACK_MS, ...all.map((r) => Date.parse(r.at) || 0));
-  return all.some((r) => {
+// starts it, rejecting it records a decision. A question is 'loading' with status 'pending' until answered.
+const heldForApproval = (r) =>
+  r.toolStatus === 'loading' && r.blockReason && !r.decision && r.reviewStatus !== 'Done' && !r.startedAt && !r.runStatus;
+const heldForAnswer = (r) => r.toolStatus === 'loading' && ASK_TOOL.test(r.tool) && r.runStatus === 'pending';
+
+// Approved edits can stay 'loading' forever, so a held call only counts while nothing came after it but
+// the other calls of the same batch: the model can't take its next step until you answer.
+function pendingOnYou(composerStatus, flushedAt, all, now) {
+  if (composerStatus === 'completed') return null;
+  for (let i = all.length - 1; i >= 0; i--) {
+    const r = all[i];
     const at = Date.parse(r.at) || 0;
-    return r.tool && r.toolStatus === 'loading' && r.blockReason && !r.decision && r.reviewStatus !== 'Done' &&
-      !r.startedAt && !r.runStatus && at >= latest && now - at < LIVE_WINDOW_MS;
-  });
+    const kind = !r.tool ? null : heldForApproval(r) ? 'approval' : heldForAnswer(r) ? 'question' : null;
+    if (!kind || now - at >= LIVE_WINDOW_MS) continue;
+    // The transcript records the held call itself a few seconds after the request.
+    if (flushedAt - FLUSH_SLACK_MS > at) return null;
+    const after = all.slice(i + 1);
+    if (after.every((x) => x.tool && (Date.parse(x.at) || 0) - at < BATCH_MS)) return kind;
+  }
+  return null;
 }
 
 function applyLiveMessages(s, all, now) {
-  s.pendingApproval = pendingApproval(s.composerStatus, s.flushedAt, all, now);
+  s.pendingOn = pendingOnYou(s.composerStatus, s.flushedAt, all, now);
   const rows = all.filter((r) => (Date.parse(r.at) || 0) > s.flushedAt);
   if (!rows.length) return;
   if (!s.file && rows.some((r) => r.type === 1)) s.instructions = 0;
@@ -710,6 +722,7 @@ function subagentView(tail, name, meta) {
     worktrees: [...st.worktrees],
     lastActive: tail.mtime,
     finished: meta ? Boolean(meta.finished) : Boolean(st.turnEnded),
+    endsOnTool: Boolean(st.endsOnTool),
     background: meta ? meta.requestShape === 'background' : true,
     marker: st.marker,
     tools: st.tools,
@@ -723,8 +736,8 @@ function subagentView(tail, name, meta) {
 function deriveStatus(s, now, opts) {
   const stalledMs = opts.stalledMinutes * 60 * 1000;
   for (const sub of s.subs) {
-    if (sub.pendingApproval) {
-      sub.status = 'blocked';
+    if (sub.pendingOn) {
+      sub.status = sub.pendingOn === 'question' ? 'waiting' : 'blocked';
       continue;
     }
     if (sub.composerStatus === 'generating') {
@@ -732,14 +745,18 @@ function deriveStatus(s, now, opts) {
       continue;
     }
     // Claude Code never marks a foreground subagent finished; it can't outlive its parent's turn.
-    const over = sub.finished || (!sub.background && s.turnEnded) || sub.composerStatus === 'completed';
-    sub.status = over ? 'done' : now - sub.lastActive < stalledMs ? 'working' : 'stalled';
+    // Cursor can mark a subagent 'completed' while it still runs; one whose last action is a tool call hasn't replied yet.
+    const completed = sub.composerStatus === 'completed' && !sub.endsOnTool;
+    const over = sub.finished || (!sub.background && s.turnEnded) || completed;
+    const shortOf100 = sub.marker && sub.marker.pct < 100;
+    sub.status = over ? (shortOf100 ? 'stopped' : 'done') : now - sub.lastActive < stalledMs ? 'working' : 'stalled';
   }
   const subsWorking = s.subs.filter((x) => x.status === 'working').length;
   const finishedByMarker = s.marker && !s.marker.stale && s.marker.pct >= 100;
   // Cursor's stored chat status is written lazily, so it only wins once the transcript agrees or goes quiet.
   const quiet = now - s.lastActive > 2 * 60 * 1000;
-  if (s.pendingApproval || s.subs.some((x) => x.status === 'blocked')) return 'blocked';
+  if (s.pendingOn === 'approval' || s.subs.some((x) => x.pendingOn === 'approval')) return 'blocked';
+  if (s.pendingOn === 'question' || s.subs.some((x) => x.pendingOn === 'question')) return 'waiting';
   if (s.composerStatus === 'generating' || s.liveTool) return now - s.lastActive < stalledMs * 2 ? 'working' : 'stalled';
   if (s.composerStatus === 'aborted' && quiet && !subsWorking) return 'stopped';
   if (s.composerStatus === 'completed' && !s.turnEnded) s.turnEnded = { status: 'success', error: '' };
