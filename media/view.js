@@ -209,7 +209,7 @@
     const st = STATUS[s.status] || STATUS.working;
     const p = progressOf(s);
     const meta = [s.sourceLabel, s.workspace, s.model, s.ticket, s.branch && s.branch !== s.ticket ? s.branch : ''].filter(Boolean);
-    const subs = [...s.subs].sort((a, b) => subRank(a) - subRank(b) || b.lastActive - a.lastActive);
+    const subs = [...s.subs].sort((a, b) => subRank(a) - subRank(b) || (b.createdAt || 0) - (a.createdAt || 0));
     const runningSubs = subs.filter((x) => x.status === 'working');
     const expanded = expandedSubs.has(s.id);
     const shownSubs = expanded ? subs : s.status === 'done' ? [] : runningSubs.concat(

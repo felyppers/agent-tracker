@@ -2,7 +2,7 @@
   "name": "agent-tracker",
   "displayName": "Agent Tracker",
   "description": "Live status and progress of every Cursor and Claude Code agent on this machine.",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "publisher": "felyppe",
   "license": "MIT",
   "repository": {

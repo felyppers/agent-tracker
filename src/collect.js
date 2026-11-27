@@ -64,7 +64,7 @@ function newState() {
     firstPrompt: '', title: '', ticket: '', branch: '', isWork: false, cwd: '', entrypoint: '',
     instructions: 0, tools: 0, replies: 0, outChars: 0,
     marker: null, todos: new Map(), lastText: '', lastPrompt: '',
-    turnEnded: null, stopReason: '', lastTs: 0,
+    turnEnded: null, stopReason: '', firstTs: 0, lastTs: 0,
     prs: [], usage: new Map(), model: '', aiTitle: '',
     spawns: [], prCreates: new Set(), asked: false, worktrees: new Set(),
   };
@@ -237,6 +237,7 @@ function reduceClaude(st, entry) {
   if (entry.type !== 'user' && entry.type !== 'assistant') return;
   if (entry.isSidechain && !st.isSubagentFile) return;
   if (entry.timestamp) st.lastTs = Date.parse(entry.timestamp) || st.lastTs;
+  if (!st.firstTs) st.firstTs = st.lastTs;
   if (!st.cwd && entry.cwd) st.cwd = entry.cwd;
   if (!st.entrypoint && entry.entrypoint) st.entrypoint = entry.entrypoint;
   const message = entry.message || {};
@@ -350,6 +351,7 @@ class Collector {
     }
     await t.update(stat.size);
     t.mtime = stat.mtimeMs;
+    if (!t.born) t.born = stat.birthtimeMs || stat.mtimeMs;
     t.seen = true;
     return t;
   }
@@ -403,7 +405,8 @@ class Collector {
       }
     }
     const visible = sessions.filter((s) => !opts.onlyWork || s.isWork);
-    visible.sort((a, b) => b.lastActive - a.lastActive);
+    // Creation order, so a chat keeps its place in its group as it works.
+    visible.sort((a, b) => b.createdAt - a.createdAt);
     return { generatedAt: now, since: cutoff, sessions: visible };
   }
 
@@ -464,6 +467,7 @@ class Collector {
         model: hook.model || '',
         file: f.file,
         flushedAt: t.mtime,
+        createdAt: t.born,
         lastActive: Math.max(t.mtime, (hook.updated || 0) * 1000, ...subs.map((s) => s.lastActive)),
         ...sessionView(st),
         cost: null,
@@ -522,6 +526,7 @@ class Collector {
           cwd: st.cwd,
           model: st.model,
           file,
+          createdAt: st.firstTs || t.born,
           lastActive: Math.max(t.mtime, ...subs.map((s) => s.lastActive)),
           ...sessionView(st),
           title: (info && info.nameSource === 'user' && info.name) || st.aiTitle || st.title || id.slice(0, 8),
@@ -543,11 +548,13 @@ function mergeComposer(s, db) {
     if (row.model) s.model = row.model + (row.maxMode ? ' (max)' : '');
     if (row.ctx) s.context = { used: row.ctx, limit: row.ctxLimit || null };
     s.composerStatus = row.status || '';
+    if (row.createdAt) s.createdAt = row.createdAt;
     s.lines = row.added || row.removed ? { added: row.added || 0, removed: row.removed || 0 } : null;
   }
   for (const sub of s.subs) {
     const r = db.get(sub.id);
     if (r && r.status) sub.composerStatus = r.status;
+    if (r && r.createdAt) sub.createdAt = r.createdAt;
   }
 }
 
@@ -687,6 +694,7 @@ function hookOnlySession(conv, hook) {
     calls: 0,
     outChars: 0,
     worktrees: [],
+    createdAt: (hook.updated || 0) * 1000,
     lastActive: (hook.updated || 0) * 1000,
     promptText: hook.task || '',
     title: hook.task || '(no prompt)',
@@ -720,6 +728,7 @@ function subagentView(tail, name, meta) {
     calls: st.replies,
     outChars: st.outChars,
     worktrees: [...st.worktrees],
+    createdAt: st.firstTs || tail.born,
     lastActive: tail.mtime,
     finished: meta ? Boolean(meta.finished) : Boolean(st.turnEnded),
     endsOnTool: Boolean(st.endsOnTool),

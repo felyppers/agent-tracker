@@ -56,7 +56,7 @@ async function composerInfo(ids) {
     "json_extract(value, '$.contextTokensUsed') as ctx, json_extract(value, '$.contextTokenLimit') as ctxLimit, " +
     "json_extract(value, '$.modelConfig.modelName') as model, json_extract(value, '$.modelConfig.maxMode') as maxMode, " +
     "json_extract(value, '$.lastUpdatedAt') as updatedAt, json_extract(value, '$.totalLinesAdded') as added, " +
-    "json_extract(value, '$.totalLinesRemoved') as removed " +
+    "json_extract(value, '$.totalLinesRemoved') as removed, json_extract(value, '$.createdAt') as createdAt " +
     `from cursorDiskKV where key in (${keys})`;
   return new Map((await query(sql, 8 << 20)).map((row) => [row.id, row]));
 }
