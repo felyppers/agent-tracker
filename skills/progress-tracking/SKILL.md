@@ -48,6 +48,17 @@ Your subagents' steps are part of your plan. `N` is your own steps plus every su
 - **Never print 100% while a subagent you started is still running.** A turn that ends with subagents running ends on the current percentage.
 - Tell every subagent you spawn to follow this skill, so its own row shows its progress too.
 
+## Approvals in subagents
+
+A subagent's approval prompt shows only inside the subagent's own chat, and some hosts (Claude Code in VS Code) can't open that chat. The user watches your chat, so every approval goes through you.
+
+- **Spot held subagents when you check in.** A subagent whose transcript hasn't changed for two minutes, and whose last entry is a tool call, is almost always waiting on an approval.
+- **Ask the user in your own chat**, right away, and keep your percentage. Name the subagent, the exact command or file, and why it's needed. Tell them where to approve it: in Cursor, open the subagent from your chat; anywhere else, reply to you. Asking ends your turn on a question, which is what moves your chat to Needs you.
+- **When they say yes**, unblock it however your host allows: resume the subagent with the approval, or run the command yourself and hand it the result.
+- **Tell every subagent you spawn:** if a call is denied, or it needs something only the user can grant, stop and return the exact request to you. Don't work around it or wait silently.
+
+`**[42%]** 13/31 — ACME-2 subagent is waiting for approval to edit db/schema.sql, needed for the new column. Approve it in that subagent's chat or reply "yes" here · next: your answer`
+
 ## Examples
 
 ```

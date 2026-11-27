@@ -36,6 +36,7 @@ const NOT_INSTRUCTION = new RegExp(
 );
 const CHUNK = 4 * 1024 * 1024;
 const LIVE_WINDOW_MS = 6 * 3600 * 1000;
+const FLUSH_SLACK_MS = 60 * 1000;
 // Agent worktrees live at ~/.cursor/worktrees/<name>/<repo> (Cursor) or <repo>/.claude/worktrees/<name> (Claude Code).
 // Separators may be / or \, and transcripts store a backslash JSON-escaped as \\.
 const SEP = String.raw`(?:/|\\{1,2})`;
@@ -364,11 +365,13 @@ class Collector {
     for (const [file, t] of this.tails) if (!t.seen) this.tails.delete(file);
     const db = await composerInfo(cursor.flatMap((s) => [s.id, ...s.subs.map((x) => x.id)]));
     const hot = cursor.filter((s) => !s.file || now - s.lastActive < LIVE_WINDOW_MS);
-    const live = await liveMessages(new Map(hot.map((s) => [s.id, s.flushedAt])));
+    const hotSubs = hot.flatMap((s) => s.subs).filter((x) => !x.finished && now - x.lastActive < LIVE_WINDOW_MS);
+    const live = await liveMessages(new Map([...hot.map((s) => [s.id, s.flushedAt]), ...hotSubs.map((x) => [x.id, x.lastActive])]));
     for (const s of sessions) {
       if (s.source === 'cursor') {
         mergeComposer(s, db);
         applyLiveMessages(s, live.get(s.id) || [], now);
+        for (const sub of s.subs) sub.pendingApproval = pendingApproval(sub.composerStatus, sub.lastActive, live.get(sub.id) || [], now);
         s.cost = cursorEstimate(s, db, opts.prices);
       }
       delete s.flushedAt;
@@ -389,6 +392,7 @@ class Collector {
       if (cwdTree) trees.add(worktreePath(cwdTree[0]));
       s.worktrees = [...trees].filter((w) => fs.existsSync(w));
       for (const sub of s.subs) {
+        delete sub.pendingApproval;
         delete sub.promptText;
         delete sub.calls;
         delete sub.outChars;
@@ -578,16 +582,22 @@ function sessionView(st) {
   };
 }
 
-function applyLiveMessages(s, all, now) {
-  // A tool call held for approval is 'loading' with a block reason; approving it marks the review Done and
-  // starts it, rejecting it records a decision. Approved edits can stay 'loading' forever, so only the chat's
-  // latest activity counts: nothing else can happen while the agent waits on you.
-  const latest = Math.max(s.flushedAt, ...all.map((r) => Date.parse(r.at) || 0));
-  s.pendingApproval = s.composerStatus !== 'completed' && all.some((r) => {
+// A tool call held for approval is 'loading' with a block reason; approving it marks the review Done and
+// starts it, rejecting it records a decision. Approved edits can stay 'loading' forever, so only the chat's
+// latest activity counts: nothing else can happen while the agent waits on you.
+function pendingApproval(composerStatus, flushedAt, all, now) {
+  if (composerStatus === 'completed') return false;
+  // The transcript records the held call itself a few seconds after the request.
+  const latest = Math.max(flushedAt - FLUSH_SLACK_MS, ...all.map((r) => Date.parse(r.at) || 0));
+  return all.some((r) => {
     const at = Date.parse(r.at) || 0;
     return r.tool && r.toolStatus === 'loading' && r.blockReason && !r.decision && r.reviewStatus !== 'Done' &&
       !r.startedAt && !r.runStatus && at >= latest && now - at < LIVE_WINDOW_MS;
   });
+}
+
+function applyLiveMessages(s, all, now) {
+  s.pendingApproval = pendingApproval(s.composerStatus, s.flushedAt, all, now);
   const rows = all.filter((r) => (Date.parse(r.at) || 0) > s.flushedAt);
   if (!rows.length) return;
   if (!s.file && rows.some((r) => r.type === 1)) s.instructions = 0;
@@ -713,6 +723,10 @@ function subagentView(tail, name, meta) {
 function deriveStatus(s, now, opts) {
   const stalledMs = opts.stalledMinutes * 60 * 1000;
   for (const sub of s.subs) {
+    if (sub.pendingApproval) {
+      sub.status = 'blocked';
+      continue;
+    }
     if (sub.composerStatus === 'generating') {
       sub.status = 'working';
       continue;
@@ -725,7 +739,7 @@ function deriveStatus(s, now, opts) {
   const finishedByMarker = s.marker && !s.marker.stale && s.marker.pct >= 100;
   // Cursor's stored chat status is written lazily, so it only wins once the transcript agrees or goes quiet.
   const quiet = now - s.lastActive > 2 * 60 * 1000;
-  if (s.pendingApproval) return 'blocked';
+  if (s.pendingApproval || s.subs.some((x) => x.status === 'blocked')) return 'blocked';
   if (s.composerStatus === 'generating' || s.liveTool) return now - s.lastActive < stalledMs * 2 ? 'working' : 'stalled';
   if (s.composerStatus === 'aborted' && quiet && !subsWorking) return 'stopped';
   if (s.composerStatus === 'completed' && !s.turnEnded) s.turnEnded = { status: 'success', error: '' };

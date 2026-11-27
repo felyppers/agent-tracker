@@ -44,7 +44,7 @@ Agent Tracker reads Cursor's chat database with `sqlite3`. macOS has it. On Linu
 
 ## What it shows
 
-Agents are grouped by what they need from you. Needs you comes first: agents waiting on an approval or an answer, and agents that stalled or failed. Working comes next. Finished agents go to Idle or Done, and anything quiet for a day goes to Closed.
+Agents are grouped by what they need from you. Needs you comes first: agents waiting on an approval or an answer (their own or one of their subagents'), and agents that stalled or failed. Working comes next. Finished agents go to Idle or Done, and anything quiet for a day goes to Closed.
 
 Each card has a progress bar with the agent's last step. Below it are the agent's subagents, PRs and cost. Click the title to open the chat. Ping nudges an agent to continue. Kill stops it after asking you first. When a task is killed or done, Agent Tracker removes the git worktrees it left behind, unless a worktree has changes that aren't pushed.
 
