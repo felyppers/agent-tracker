@@ -380,7 +380,9 @@
       ].filter(Boolean),
     );
     if (!sessions.length) root.append(el('p', { class: 'dim' }, loading ? 'Scanning…' : 'No agent sessions match.'));
-    document.getElementById('updated').textContent = `Updated ${new Date(snapshot.generatedAt).toLocaleTimeString()}${loading ? ' · scanning…' : ''}`;
+    const version = snapshot.capabilities && snapshot.capabilities.version;
+    document.getElementById('updated').textContent =
+      `Updated ${new Date(snapshot.generatedAt).toLocaleTimeString()}${loading ? ' · scanning…' : ''}${version ? ` · v${version}` : ''}`;
   }
 
   document.querySelectorAll('[data-range]').forEach((b) =>

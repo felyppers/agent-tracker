@@ -88,7 +88,11 @@ class Dashboard {
   }
 
   capabilities() {
-    return { isCursor: this.isCursor, hasClaudeExtension: Boolean(vscode.extensions.getExtension(CLAUDE_EXTENSION)) };
+    return {
+      isCursor: this.isCursor,
+      hasClaudeExtension: Boolean(vscode.extensions.getExtension(CLAUDE_EXTENSION)),
+      version: this.context.extension.packageJSON.version,
+    };
   }
 
   start() {
