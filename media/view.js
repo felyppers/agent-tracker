@@ -294,13 +294,16 @@
     const counts = new Map();
     for (const s of pool) for (const t of s.tags) counts.set(t, (counts.get(t) || 0) + 1);
     const tags = [...counts].sort((a, b) => b[1] - a[1]);
-    document.getElementById('tags').replaceChildren(
+    document.getElementById('tags').replaceChildren(...[
       ...tags.map(([t, n]) => el('button', { class: `tag tag-${t}${tagFilter === t ? ' on' : ''}`, onclick: () => setTag(tagFilter === t ? '' : t) }, `${t} ${n}`)),
       tagFilter && link('clear', () => setTag(''), { class: 'dimlink' }),
-    );
+    ].filter(Boolean));
   }
 
   function renderOverall(sessions, counts) {
+    const box = document.getElementById('overall');
+    box.hidden = sessions.length === 0;
+    if (box.hidden) return box.replaceChildren();
     // A closed chat is finished business, so it counts as complete whatever its last progress line said.
     const pctIn = (key, s) => (key === 'closed' ? 100 : pctOf(s));
     const shown = Object.keys(counts).filter((key) => !hiddenInBar.has(key));
@@ -330,7 +333,7 @@
       render();
     };
     const hiddenNote = hiddenInBar.size ? `\nHidden from the bar: ${[...hiddenInBar].map((k) => (parts.find(([key]) => key === k) || [k, k])[1]).join(', ')}` : '';
-    document.getElementById('overall').replaceChildren(
+    box.replaceChildren(...[
       el('div', { class: 'row overall-row', title: `Average progress of ${plural(scored.length, 'session')} that report progress; closed counts as 100%${hiddenNote}` },
         el('span', { class: 'overall-label' }, 'Overall'),
         el('div', { class: 'progress-stack' },
@@ -353,7 +356,7 @@
             el('strong', {}, `≈$${sum(cursor).toFixed(2)}`), ' Cursor est.'),
           el('span', { class: 'dim' }, ` · total ${claudeFloor ? '≥' : '≈'}$${(sum(claude) + sum(cursor)).toFixed(2)}`)),
         cursor.length > 0 && link('billed on cursor.com', () => send({ type: 'openUrl', url: CURSOR_USAGE }), { class: 'dimlink' })),
-    );
+    ].filter(Boolean));
   }
 
   function render() {

@@ -13,13 +13,16 @@ body{width:400px}
   <div id="overall"></div>
 </header>
 <main id="root"></main><footer id="updated"></footer>
-<!-- ?data=mock renders preview/mock-snapshot.js; otherwise preview/snapshot.json from `node bin/snapshot.js > preview/snapshot.json`. ?open=turn,working,done picks the expanded groups. -->
+<!-- ?data=mock renders preview/mock-snapshot.js, ?data=empty renders no sessions; otherwise preview/snapshot.json from `node bin/snapshot.js > preview/snapshot.json`. ?open=turn,working,done picks the expanded groups. -->
 <script>window.acquireVsCodeApi=()=>({getState:()=>({openGroups:(new URLSearchParams(location.search).get("open")||"working,turn").split(",")}),setState(){},postMessage(){}});</script>
 <script src="mock-snapshot.js"></script>
 <script src="../media/view.js"></script>
 <script>
 const params = new URLSearchParams(location.search);
-const load = params.get("data") === "mock" ? Promise.resolve(window.mockSnapshot(Date.now())) : fetch("snapshot.json").then((r) => r.json());
+const data = params.get("data");
+const load = data === "mock" ? Promise.resolve(window.mockSnapshot(Date.now()))
+  : data === "empty" ? Promise.resolve({ ...window.mockSnapshot(Date.now()), sessions: [] })
+  : fetch("snapshot.json").then((r) => r.json());
 load.then((s) => { s.generatedAt = Date.now(); window.postMessage({ type: "data", snapshot: s }, "*"); });
 </script>
 </body></html>
