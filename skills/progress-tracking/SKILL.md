@@ -39,7 +39,12 @@ Your subagents' steps are part of your plan. `N` is your own steps plus every su
 
 - **Plan their steps up front.** When you know you'll delegate, put each subagent's step count in `N` from the start, or an estimate if you don't know its plan yet. Then spawning doesn't make the number drop.
 - **Correct `N` as you learn more.** When a subagent's real plan is longer or shorter than your estimate, change `N` and keep going. Never restart from 0.
-- **Count their steps as they finish.** When you can see a subagent's latest `k/N`, add its finished steps to your `k`. When you can't, count its steps when its result comes back.
+- **Count their steps as they finish.** Add each subagent's finished steps to your `k` from its latest `k/N`. A subagent you can't read counts when its result comes back.
+- **Check in on them.** Your line only moves when you print one, so while subagents run, check every few minutes. Use your host's wait tool (a background wait or monitor), not a busy loop. Read only each subagent's latest progress line, and print a new line of yours when any of them moved. Stop when the last one returns.
+  - Cursor: `~/.cursor/projects/<project>/agent-transcripts/<your chat id>/subagents/<subagent id>.jsonl`
+  - Claude Code: `~/.claude/projects/<project>/<your session id>/subagents/agent-<id>.jsonl`, or the output file the spawn call returned
+  - Latest line of one subagent: `grep -oE '\[[0-9]{1,3}%\]\** *[0-9]+/[0-9]+' <file> | tail -1`
+- **If your host ends your turn while subagents run**, you can't check in. End the turn on the current percentage and update it each time a subagent reports back.
 - **Never print 100% while a subagent you started is still running.** A turn that ends with subagents running ends on the current percentage.
 - Tell every subagent you spawn to follow this skill, so its own row shows its progress too.
 
