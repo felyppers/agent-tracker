@@ -28,19 +28,18 @@ Print each progress line on its own, at the start of the line:
 
 ## Rules
 
-- `NN` = steps done / total steps. If the plan grows or shrinks, change `N` and keep going. Don't restart from 0, except when you spawn subagents (below).
+- `NN` = steps done / total steps. If the plan grows or shrinks, change `N` and keep going. Don't restart from 0.
 - Weight a step by its size when one clearly dominates (a long test run, a big refactor). The number should track time, not only count steps.
 - When you stop to ask the user something, keep the current percentage. Never print 100% for a task that is waiting on the user.
 - A skill or command that defines its own progress table uses that table, as long as its lines keep the `**[NN%]**` prefix.
 
 ## Subagents
 
-Once you spawn subagents, your progress tracks their work, not the setup you did to launch them.
+Your subagents' steps are part of your plan. `N` is your own steps plus every subagent's steps, and `k` is everything finished across all of them.
 
-- **Spawning starts a new count.** Print `**[0%]** 0/N`, where `N` is the number of subagents plus one for each step you'll do after they return (merge, verify, report). This is the one time the number goes back down. Setup before spawning (picking tickets, making worktrees) never ends at 100%.
-- **A subagent is one step**, however many steps it has inside. `k/N` counts your subagents and your own steps. Never add the subagents' step counts to `N`.
-- **`k` goes up when a subagent's result is back**, not when you launch it.
-- **`NN` includes partial work.** When you can see each subagent's latest percentage, add them as fractions of a step: three subagents at 40%, 15% and 25% out of `N = 4` is (0.40 + 0.15 + 0.25) / 4 = 20%. When you can't, use `k/N`.
+- **Plan their steps up front.** When you know you'll delegate, put each subagent's step count in `N` from the start, or an estimate if you don't know its plan yet. Then spawning doesn't make the number drop.
+- **Correct `N` as you learn more.** When a subagent's real plan is longer or shorter than your estimate, change `N` and keep going. Never restart from 0.
+- **Count their steps as they finish.** When you can see a subagent's latest `k/N`, add its finished steps to your `k`. When you can't, count its steps when its result comes back.
 - **Never print 100% while a subagent you started is still running.** A turn that ends with subagents running ends on the current percentage.
 - Tell every subagent you spawn to follow this skill, so its own row shows its progress too.
 
@@ -54,15 +53,15 @@ Once you spawn subagents, your progress tracks their work, not the setup you did
 **[100%]** 4/4 — PR opened · next: none
 ```
 
-An orchestrator that sets up three tickets, hands each to a subagent, then reports the PRs:
+An orchestrator with 4 steps of its own (claim, worktrees, spawn, report) and three subagents of about 9 steps each plans 4 + 27 = 31 steps:
 
 ```
-**[60%]** 3/5 — tickets claimed, worktrees ready · next: spawn 3 subagents
-**[0%]** 0/4 — spawned subagents for ACME-1, ACME-2, ACME-3 · next: wait for results
-**[20%]** 0/4 — subagents at 40%, 15%, 25% · next: wait for results
-**[45%]** 1/4 — ACME-1 done, PR opened; others at 50%, 30% · next: wait for ACME-2 and ACME-3
-**[75%]** 3/4 — all three done · next: report the PRs
-**[100%]** 4/4 — reported 3 PRs · next: none
+**[0%]** 0/31 — plan: claim 3 tickets, make worktrees, 3 subagents (~9 steps each), report · next: claim tickets
+**[10%]** 3/31 — spawned subagents for ACME-1, ACME-2, ACME-3 · next: wait for their steps
+**[42%]** 13/31 — subagents at 5/9, 3/9, 2/9 · next: wait for their steps
+**[67%]** 22/33 — ACME-1 done; ACME-2 has 11 steps, not 9; others at 6/11, 4/9 · next: wait for ACME-2 and ACME-3
+**[97%]** 32/33 — all three done · next: report the PRs
+**[100%]** 33/33 — reported 3 PRs · next: none
 ```
 
 A question back to the user keeps the number:
